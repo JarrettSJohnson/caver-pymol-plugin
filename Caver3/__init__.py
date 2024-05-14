@@ -263,6 +263,14 @@ class PyJava:
         if 'OutOfMemory' in output:
             self.insufficient_memory = True
 
+class TightQHBoxLayout(QtWidgets.QHBoxLayout):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        contentsMargin = self.contentsMargins()
+        contentsMargin.setTop(0)
+        contentsMargin.setBottom(0)
+        self.setContentsMargins(contentsMargin)
+
 class EntryField(QtWidgets.QWidget):
     """
     Based on TK EntryField
@@ -271,10 +279,9 @@ class EntryField(QtWidgets.QWidget):
         super().__init__(parent)
         self.label = QtWidgets.QLabel(label_text, parent=self)
         self.entry = QtWidgets.QLineEdit(value, parent=self)
-        self.layout = QtWidgets.QHBoxLayout()
+        self.layout = TightQHBoxLayout(self)
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.entry)
-        self.setLayout(self.layout)
 
     def setvalue(self, value: str) -> None:
         """
@@ -366,7 +373,7 @@ class AnBeKoM(QtWidgets.QDialog):
 
         #self.binlocation.pack(fill='x',padx=4,pady=1) # vertical
         self.configgroup = QtWidgets.QGroupBox("Configuration save/load")
-        self.configgroup_layout = QtWidgets.QHBoxLayout(self.configgroup)
+        self.configgroup_layout = TightQHBoxLayout(self.configgroup)
 
         #self.configgroup = Pmw.Group(self.dialog.interior(), tag_text='Configuration save/load')
         self.conflocationDefault = os.path.join(self.caver3locationAbsolute,"config.txt")
@@ -465,7 +472,7 @@ class AnBeKoM(QtWidgets.QDialog):
         #self.varremovewater.set(1)
 
         self.inModelGroup = QtWidgets.QGroupBox("Input model:")
-        model_group_layout = QtWidgets.QHBoxLayout()
+        model_group_layout = TightQHBoxLayout(self.inModelGroup)
         self.listbox1 = QtWidgets.QListWidget()
         self.listbox1.setMinimumSize(25, 6)
         self.listbox1.itemSelectionChanged.connect(self.inputAnalyseWrap)
@@ -476,7 +483,6 @@ class AnBeKoM(QtWidgets.QDialog):
         self.reloadListButton = QtWidgets.QPushButton("Reload")
         self.reloadListButton.clicked.connect(self.updateList)
         model_group_layout.addWidget(self.reloadListButton)
-        self.inModelGroup.setLayout(model_group_layout)
         layout.addWidget(self.inModelGroup)
 
         
@@ -560,7 +566,7 @@ class AnBeKoM(QtWidgets.QDialog):
 
         
         group2 = QtWidgets.QGroupBox("x, y, z coordinates of starting point")
-        group2_layout = QtWidgets.QHBoxLayout(group2)
+        group2_layout = TightQHBoxLayout(group2)
         start_group_layout.addWidget(group2)
 
         #group2 = Pmw.Group(radioframe,
@@ -585,7 +591,7 @@ class AnBeKoM(QtWidgets.QDialog):
         # self.zlocvar.set(float(defaults["startingpoint"][2]))
 
         self.xlocfr = QtWidgets.QFrame()
-        xlocfr_layout = QtWidgets.QHBoxLayout(self.xlocfr)
+        xlocfr_layout = TightQHBoxLayout(self.xlocfr)
         group2_layout.addWidget(self.xlocfr)
         labX = QtWidgets.QLabel("x")
         xlocfr_layout.addWidget(labX)
@@ -597,7 +603,7 @@ class AnBeKoM(QtWidgets.QDialog):
         # self.scrX=Scrollbar(self.xlocfr,orient="horizontal",command=self.changeValueX)
 
         self.ylocfr = QtWidgets.QFrame()
-        ylocfr_layout = QtWidgets.QHBoxLayout(self.ylocfr)
+        ylocfr_layout = TightQHBoxLayout(self.ylocfr)
         group2_layout.addWidget(self.ylocfr)
         labY = QtWidgets.QLabel("y")
         ylocfr_layout.addWidget(labY)
@@ -609,7 +615,7 @@ class AnBeKoM(QtWidgets.QDialog):
         # self.scrY=Scrollbar(self.ylocfr,orient="horizontal",command=self.changeValueY)
 
         self.zlocfr = QtWidgets.QFrame()
-        zlocfr_layout = QtWidgets.QHBoxLayout(self.zlocfr)
+        zlocfr_layout = TightQHBoxLayout(self.zlocfr)
         group2_layout.addWidget(self.zlocfr)
         labZ = QtWidgets.QLabel("z")
         zlocfr_layout.addWidget(labZ)
@@ -634,7 +640,7 @@ class AnBeKoM(QtWidgets.QDialog):
         # self.zlocfr.pack(side=LEFT,fill='x',padx=4,pady=1) # vertical
 
         self.OpGroup = QtWidgets.QGroupBox("Starting point optimization")
-        optimization_group_layout = QtWidgets.QHBoxLayout(self.OpGroup)
+        optimization_group_layout = TightQHBoxLayout(self.OpGroup)
         self.optimizeLabel = QtWidgets.QLabel("Maximum distance (A):")
         optimization_group_layout.addWidget(self.optimizeLabel)
         start_group_layout.addWidget(self.OpGroup)
@@ -663,8 +669,7 @@ class AnBeKoM(QtWidgets.QDialog):
         #self.UoptimizeButton.pack(side=LEFT,padx=1,pady=1)
 
         self.egroup = QtWidgets.QGroupBox("Computation result")
-        egroup_layout = QtWidgets.QVBoxLayout()
-        self.egroup.setLayout(egroup_layout)
+        egroup_layout = QtWidgets.QVBoxLayout(self.egroup)
         self.aftercomp = QtWidgets.QLabel("test")
         egroup_layout.addWidget(self.aftercomp)
         self.afterbutt = QtWidgets.QPushButton("Details")
