@@ -13,7 +13,7 @@ Website: <https://www.caver.cz>
 
 
 ## Requirements
-* PyMOL  >=  1.7
+* PyMOL  >=  2 (Which supports PyQt plugins)
 * Java   ==  1.8
 
 ## Installation instructions

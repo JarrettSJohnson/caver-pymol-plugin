@@ -655,7 +655,6 @@ class AnBeKoM(QtWidgets.QDialog):
         optimization_group_layout.addWidget(self.optimizeRadius)
 
 
-
         # TODO
         # self.optimizeNear = tk.Entry(self.OpGroup.interior(),textvariable=self.optimizeNearValue,justify='right', width=10)
         # self.optimizeNear.pack(side=LEFT,padx=4,pady=1)
