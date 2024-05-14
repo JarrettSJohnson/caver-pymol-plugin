@@ -4,6 +4,8 @@
 # ============================
 #
 
+# Ported to PyQt 2024 by Jarrett Johnson
+
 import math
 import os
 import re
@@ -22,6 +24,8 @@ Qt = QtCore.Qt
 #
 # Global config variables
 #
+
+DEBUG_OUTPUT = False
 
 #win/linux ========================
 # 1 for windows, 0 for linux
@@ -76,15 +80,6 @@ except ImportError:
         cmd = cmd()
     pymol = pymol()
 
-
-# pridani do menu
-def __init__(self):
-    lbb = f"Caver {VERSION}"
-    self.menuBar.addmenuitem('Plugin', 'command',
-                             'Launch Caver '  + VERSION,
-                             label=lbb,
-                             command = lambda s=self: AnBeKoM(s))
-
 dialog = None
 
 def run_plugin_gui():
@@ -98,7 +93,7 @@ def run_plugin_gui():
 
     dialog.show()
 
-def __init__plugin__(app=None):
+def __init_plugin__(self):
     from pymol.plugins import addmenuitemqt
     addmenuitemqt('Caver', run_plugin_gui)
 
@@ -255,12 +250,12 @@ class PyJava:
                 self.analyze(e.output.decode('UTF-8'))
                 return e.returncode
             except OSError as e:
-                error_dialog = Pmw.MessageDialog(title='Error',
-                    message_text="Can't execute " + str(args) + "\n\n" + str(e))
+                error_dialog = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error', f"Can't execute {str(args)}\n\n{str(e)}")
+                error_dialog.exec_()
                 return -1
             except Exception as e:
-                error_dialog = Pmw.MessageDialog(title='Error',
-                    message_text="Unknown error: " + str(e))
+                error_dialog = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error', f"Unknown error: {str(e)}", parent=self)
+                error_dialog.exec_()
                 return -2
             return 0
 
@@ -296,7 +291,6 @@ class EntryField(QtWidgets.QWidget):
 class AnBeKoM(QtWidgets.QDialog):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        parent = self.parent()
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setSpacing(1)
@@ -325,12 +319,12 @@ class AnBeKoM(QtWidgets.QDialog):
         #self.dialog.withdraw()
 
         version_text = f"Caver {VERSION}"
-        label = QtWidgets.QLabel(text=version_text, parent=parent)
+        label = QtWidgets.QLabel(text=version_text)
         label.setStyleSheet("background-color: orange; color: white;")
         label.setMargin(4)
         label.setAlignment(Qt.AlignCenter)
 
-        button = QtWidgets.QPushButton("Help and how to cite", parent=parent)
+        button = QtWidgets.QPushButton("Help and how to cite")
         button.clicked.connect(self.launchHelp)
 
         layout.addWidget(label)
@@ -362,7 +356,8 @@ class AnBeKoM(QtWidgets.QDialog):
 
             # self.caver3location.pack(fill='x',padx=4,pady=1) # vertical
 #win/linux
-        layout.addWidget(EntryField(label_text="Output directories:", value=OUTPUT_LOCATION))
+        self.binlocation = EntryField(label_text="Output directories:", value=OUTPUT_LOCATION)
+        layout.addWidget(self.binlocation)
         # self.binlocation = Pmw.EntryField(self.dialog.interior(),
         #                              labelpos='w',
         #                              value = OUTPUT_LOCATION,
@@ -372,6 +367,7 @@ class AnBeKoM(QtWidgets.QDialog):
         #self.binlocation.pack(fill='x',padx=4,pady=1) # vertical
         self.configgroup = QtWidgets.QGroupBox("Configuration save/load")
         self.configgroup_layout = QtWidgets.QHBoxLayout(self.configgroup)
+
         #self.configgroup = Pmw.Group(self.dialog.interior(), tag_text='Configuration save/load')
         self.conflocationDefault = os.path.join(self.caver3locationAbsolute,"config.txt")
         self.DEFCONF = "(default config used)"
@@ -498,13 +494,15 @@ class AnBeKoM(QtWidgets.QDialog):
 
 
         self.filterGroup = QtWidgets.QGroupBox("Input atoms:")
-        filter_group_layout = QtWidgets.QVBoxLayout()
-        self.filterGroup.setLayout(filter_group_layout)
+        self.filter_group_layout = QtWidgets.QVBoxLayout(self.filterGroup)
+        layout.addWidget(self.filterGroup)
 
         #self.filterGroup = Pmw.Group(self.dialog.interior(), tag_text='Input atoms:')
         #self.filterGroup.pack()
-        self.checklist = []
-        self.buttonlist = []
+        #self.checklist = []
+        #self.buttonlist = []
+        self.filter_group_grid = QtWidgets.QGridLayout()
+        self.filter_group_layout.addLayout(self.filter_group_grid)
 
         self.updateList()
         #fill with data
@@ -590,11 +588,8 @@ class AnBeKoM(QtWidgets.QDialog):
         xlocfr_layout = QtWidgets.QHBoxLayout(self.xlocfr)
         group2_layout.addWidget(self.xlocfr)
         labX = QtWidgets.QLabel("x")
-        self.xlocation = QtWidgets.QLineEdit(text=str(self.xlocvar.value()))
-        self.scrX = QtWidgets.QScrollBar(QtCore.Qt.Horizontal)
         xlocfr_layout.addWidget(labX)
-        xlocfr_layout.addWidget(self.xlocation)
-        xlocfr_layout.addWidget(self.scrX)
+        xlocfr_layout.addWidget(self.xlocvar)
 
         # self.xlocfr = tk.Frame(group2.interior())
         # labX = Label(self.xlocfr,text="x")
@@ -605,11 +600,8 @@ class AnBeKoM(QtWidgets.QDialog):
         ylocfr_layout = QtWidgets.QHBoxLayout(self.ylocfr)
         group2_layout.addWidget(self.ylocfr)
         labY = QtWidgets.QLabel("y")
-        self.ylocation = QtWidgets.QLineEdit(text=str(self.ylocvar.value()))
-        self.scrY = QtWidgets.QScrollBar(QtCore.Qt.Horizontal)
         ylocfr_layout.addWidget(labY)
-        ylocfr_layout.addWidget(self.ylocation)
-        ylocfr_layout.addWidget(self.scrY)
+        ylocfr_layout.addWidget(self.ylocvar)
 
         # self.ylocfr = tk.Frame(group2.interior())
         # labY = Label(self.ylocfr,text="y")
@@ -620,11 +612,8 @@ class AnBeKoM(QtWidgets.QDialog):
         zlocfr_layout = QtWidgets.QHBoxLayout(self.zlocfr)
         group2_layout.addWidget(self.zlocfr)
         labZ = QtWidgets.QLabel("z")
-        self.zlocation = QtWidgets.QLineEdit(text=str(self.zlocvar.value()))
-        self.scrZ = QtWidgets.QScrollBar(QtCore.Qt.Horizontal)
         zlocfr_layout.addWidget(labZ)
-        zlocfr_layout.addWidget(self.zlocation)
-        zlocfr_layout.addWidget(self.scrZ)
+        zlocfr_layout.addWidget(self.zlocvar)
     
         # self.zlocfr = tk.Frame(group2.interior())
         # labZ = Label(self.zlocfr,text="z")
@@ -689,8 +678,8 @@ class AnBeKoM(QtWidgets.QDialog):
 
 
         buttonBox = QtWidgets.QDialogButtonBox()
-        okButton = buttonBox.addButton(QtWidgets.QDialogButtonBox.Ok)
-        okButton.setText(defaults["compute_command"])
+        okButton = buttonBox.addButton(defaults["compute_command"], QtWidgets.QDialogButtonBox.ActionRole)
+        #okButton.setText(defaults["compute_command"])
         okButton.clicked.connect(self.execute)
         cancelButton = buttonBox.addButton(QtWidgets.QDialogButtonBox.Cancel)
         cancelButton.setText(defaults["exit_command"])
@@ -719,7 +708,7 @@ class AnBeKoM(QtWidgets.QDialog):
 
     def pop_error(self, msg):
         #error_dialog = Pmw.MessageDialog(self.parent, title = 'Error',message_text = msg)
-        error_dialog = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error', msg)
+        error_dialog = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error', msg, parent=self)
         error_dialog.exec_()
 
     def getConfLoc(self):
@@ -729,25 +718,25 @@ class AnBeKoM(QtWidgets.QDialog):
         else:
             return cf
     def showCrisscross(self):
-        startpoint=(float(self.xlocvar.get()),float(self.ylocvar.get()),float(self.zlocvar.get()))
+        startpoint=(float(self.xlocvar.value()),float(self.ylocvar.value()),float(self.zlocvar.value()))
         cmd.delete("crisscross")
         self.crisscross(startpoint[0],startpoint[1],startpoint[2],0.5,"crisscross")
 
 #win/linux
     def changeValueX(self, *args):
             a = args[0] if len(args) == 1 else args[1]
-            val=float(self.xlocvar.get())+float(a)*0.2
-            self.xlocvar.set(val)
+            val=float(self.xlocvar.value())+float(a)*0.2
+            self.xlocvar.setValue(val)
             self.showCrisscross()
     def changeValueY(self, *args):
             a = args[0] if len(args) == 1 else args[1]
-            val=float(self.ylocvar.get())+float(a)*0.2
-            self.ylocvar.set(val)
+            val=float(self.ylocvar.value())+float(a)*0.2
+            self.ylocvar.setValue(val)
             self.showCrisscross()
     def changeValueZ(self, *args):
             a = args[0] if len(args) == 1 else args[1]
-            val=float(self.zlocvar.get())+float(a)*0.2
-            self.zlocvar.set(val)
+            val=float(self.zlocvar.value())+float(a)*0.2
+            self.zlocvar.setValue(val)
             self.showCrisscross()
 
 
@@ -795,7 +784,9 @@ class AnBeKoM(QtWidgets.QDialog):
 
     def details(self):
         fc = self.loadFileContent(f"{self.out_dir}/warnings.txt")
-        error_dialog = Pmw.MessageDialog(self.parent,title = 'Information', message_text = fc,)
+        #error_dialog = Pmw.MessageDialog(self.parent,title = 'Information', message_text = fc,)
+        error_dialog = Qt.QMessageBox(Qt.QMessageBox.Information, 'Information', fc, parent=self)
+        error_dialog.exec_()
 
     def loadFileContent(self, file):
         handler = open(file)
@@ -840,7 +831,7 @@ class AnBeKoM(QtWidgets.QDialog):
         print("Output will be stored in " + self.out_dir)
 
     def coordinatesNotSet(self):
-        b = float(self.xlocvar.get()) == 0 and float(self.ylocvar.get()) == 0 and float(self.zlocvar.get()) == 0
+        b = float(self.xlocvar.value()) == 0 and float(self.ylocvar.value()) == 0 and float(self.zlocvar.value()) == 0
         return b
 
     def printErrorMessages(self, dir):
@@ -856,7 +847,7 @@ class AnBeKoM(QtWidgets.QDialog):
                 self.pop_error(m)
 
 
-    def execute(self, result):
+    def execute(self):
         #elif result == defaults["warn_command"]:
             #self.wtext = tk.Text(root, height=26, width=50)
             #scroll = Scrollbar(root, command=text.yview)
@@ -867,7 +858,8 @@ class AnBeKoM(QtWidgets.QDialog):
             #for line in lines:
             #  wresult += line
             #error_dialog = Pmw.MessageDialog(self.parent,title = 'Information', message_text = wresult,)
-        if result == defaults["compute_command"]:
+        #if result == defaults["compute_command"]:
+        if True:
 
             if self.coordinatesNotSet():
                 self.pop_error("Please specify starting point - e.g. by selecting atoms or residues and clicking at the button 'Convert to x, y, z'.")
@@ -877,11 +869,9 @@ class AnBeKoM(QtWidgets.QDialog):
             self.showCrisscross()
 
             #input
-            sel1index = self.listbox1.curselection()[0]
-            sel1text = self.listbox1.get(sel1index)
+            sel1item = self.listbox1.currentItem()
 
-
-            self.whichModelSelect = sel1text
+            self.whichModelSelect = sel1item.text()
 
             #print('selected ' + self.whichModelSelect)
             sel=cmd.get_model(self.whichModelSelect)
@@ -896,8 +886,9 @@ class AnBeKoM(QtWidgets.QDialog):
             # jen to zaskrtnute
             generatedString = ""
             for key in self.s:
-                if self.s[key].get() == 1:
+                if self.s[key] == Qt.Checked:
                 # pak pouzit do vyberu:
+                # (English) then use for selection:
                     if key == self.AAKEY:
                         generatedString = generatedString + "+" + self.stdamString
                     else:
@@ -930,7 +921,7 @@ class AnBeKoM(QtWidgets.QDialog):
 
 
             # set ignore waters to false -- the model is already filtered by input model and aminos
-            self.varremovewater.set(0)
+            self.varremovewater.setCheckState(Qt.Unchecked)
 
             caverfolder = "%s" % (self.caver3locationAbsolute)
             caverjar = caverfolder + "/" + "caver.jar"
@@ -962,9 +953,11 @@ class AnBeKoM(QtWidgets.QDialog):
             print(runview)
             cmd.do(runview)
             # adjust gui to display warnings & group
-            self.egroup.pack(fill="x")
+            # TODO
+            #self.egroup.pack(fill="x")
+            self.egroup.show()
 
-            err = f"{self.out_dir}/warnings.txt" % (self.out_dir)
+            err = f"{self.out_dir}/warnings.txt"
             if os.path.exists(err) and os.stat(err)[6] == 0:
                 self.aftercomp.setText("Computation finished succesfully")
                 self.afterbutt.setEnabled(False)
@@ -1010,7 +1003,7 @@ class AnBeKoM(QtWidgets.QDialog):
         for a in sel.atom:
             cnt+=1
         if cnt == 0:
-            error_dialog = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error', 'ERROR: No molecule loaded.')
+            error_dialog = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error', 'ERROR: No molecule loaded.', parent=self)
             error_dialog.exec_()
         #try:
         if 1:
@@ -1020,9 +1013,9 @@ class AnBeKoM(QtWidgets.QDialog):
             startpoint = self.compute_center(s)
             if None == startpoint:
                 return
-            self.xlocvar.set(self.fixPrecision(startpoint[0]))
-            self.ylocvar.set(self.fixPrecision(startpoint[1]))
-            self.zlocvar.set(self.fixPrecision(startpoint[2]))
+            self.xlocvar.setValue(self.fixPrecision(startpoint[0]))
+            self.ylocvar.setValue(self.fixPrecision(startpoint[1]))
+            self.zlocvar.setValue(self.fixPrecision(startpoint[2]))
             self.crisscross(startpoint[0],startpoint[1],startpoint[2],0.5,"crisscross")
             self.showCrisscross()
         #except:
@@ -1084,12 +1077,12 @@ class AnBeKoM(QtWidgets.QDialog):
 
         if self.dataStructure.indexOf('starting_point_coordinates') != -1 and self.dataStructure.indexOf('starting_point_atom') != -1:
             #Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'Simultaneous usage of starting_point_coordinates parameter with starting_point_atom parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring atom.')
-            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'Simultaneous usage of starting_point_coordinates parameter with starting_point_atom parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring atom.')
+            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'Simultaneous usage of starting_point_coordinates parameter with starting_point_atom parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring atom.', parent=self)
             msg.exec_()
             self.dataStructure.remove('starting_point_atom')
         if self.dataStructure.indexOf('starting_point_coordinates') != -1 and self.dataStructure.indexOf('starting_point_residue') != -1:
             #Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'Simultaneous usage of starting_point_coordinates parameter with starting_point_residue parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring residue.')
-            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'Simultaneous usage of starting_point_coordinates parameter with starting_point_residue parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring residue.')
+            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'Simultaneous usage of starting_point_coordinates parameter with starting_point_residue parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring residue.', parent=self)
             msg.exec_()
             self.dataStructure.remove('starting_point_residue')
         if self.dataStructure.indexOf('starting_point_coordinates') == -1:
@@ -1125,7 +1118,7 @@ class AnBeKoM(QtWidgets.QDialog):
         # test include/exclude
         if self.hasIncludeExclude():
             #Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'include_ and exclude_ parameters are not supported by plugin. Please, use the plugin to specify residues to be analyzed.')
-            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'include_ and exclude_ parameters are not supported by plugin. Please, use the plugin to specify residues to be analyzed.')
+            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'include_ and exclude_ parameters are not supported by plugin. Please, use the plugin to specify residues to be analyzed.', parent=None)
             msg.exec_()
 
         #print("reading done...")
@@ -1237,12 +1230,10 @@ class AnBeKoM(QtWidgets.QDialog):
                     fromconf = ress[idx]
                     if fromconf in self.stdam_list:
                         if aa_added == 0:
-                            self.s[self.AAKEY] = IntVar()
-                            self.s[self.AAKEY].set(1)
+                            self.s[self.AAKEY] = Qt.Checked
                             aa_added = 1
                     elif fromconf.strip() != "":
-                        self.s[fromconf] = IntVar()
-                        self.s[fromconf].set(1)
+                        self.s[fromconf] = Qt.Checked
                 self.reinitialiseFromConfig()
             elif key == "starting_point_coordinates":
                 starr = (str(val)).split(" ")
@@ -1255,7 +1246,7 @@ class AnBeKoM(QtWidgets.QDialog):
         self.dataStructure.replace("shell_depth",self.shellDepth.getvalue(), 0)
         self.dataStructure.replace("shell_radius",self.shellRadius.getvalue(), 0)
         self.dataStructure.replace("clustering_threshold",self.clusteringThreshold.getvalue(), 0)
-        self.dataStructure.replace("number_of_approximating_balls",self.approxVar.get(), 0)
+        self.dataStructure.replace("number_of_approximating_balls",self.approxVar.text(), 0)
         #check-boxed residues
         result = ""
         for item in self.s.keys():
@@ -1264,7 +1255,7 @@ class AnBeKoM(QtWidgets.QDialog):
             #if item == self.AAKEY and self.s[item].get() == 1:
             #    result = result + " " + string.join(self.stdam_list, " ")
             #elif self.s[item].get() == 1:
-            if self.s[item].get() == 1:
+            if self.s[item] == Qt.Checked:
                 result = result + " " + item
         self.dataStructure.replace("include_residue_names", result, 0)
 
@@ -1273,15 +1264,17 @@ class AnBeKoM(QtWidgets.QDialog):
         self.dataStructure.remove("starting_point_residue")
         self.dataStructure.remove("starting_point_atom")
 
-        asit = str(self.xlocvar.get()) + " " + str(self.ylocvar.get()) + " " + str(self.zlocvar.get())
+        asit = str(self.xlocvar.value()) + " " + str(self.ylocvar.value()) + " " + str(self.zlocvar.value())
         self.dataStructure.replace("starting_point_coordinates",asit, 0)
-        self.dataStructure.replace("max_distance",self.optimizeNearValue.get(), 0)
-        self.dataStructure.replace("desired_radius",self.optimizeRadius.get(), 0)
+        self.dataStructure.replace("max_distance",self.optimizeNearValue.text(), 0)
+        self.dataStructure.replace("desired_radius",self.optimizeRadius.text(), 0)
         #print("len" + str(len(self.dataStructure.getKeys()))  + str(len(self.dataStructure.getValues())))
     def stdamMessage(self):
-        Pmw.MessageDialog(self.parent,title = 'Information',message_text = self.AAKEY + ': Standard amino acids: \n ' + ", ".join(self.stdam_list))
+        #Pmw.MessageDialog(self.parent,title = 'Information',message_text = self.AAKEY + ': Standard amino acids: \n ' + ", ".join(self.stdam_list))
+        msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', self.AAKEY + ': Standard amino acids: \n ' + ", ".join(self.stdam_list), parent=self)
+        msg.exec_()
 
-    def inputAnalyseWrap(self, args):
+    def inputAnalyseWrap(self):
             #print(self.listbox1.curselection()[0] # aby to fungovalo, musi byt bindnute na <<ListboxSelect>>)
             #print("calling from wrap")
         if self.configJustLoaded == 1:
@@ -1333,38 +1326,51 @@ class AnBeKoM(QtWidgets.QDialog):
                         self.s[self.AAKEY] = Qt.Checked
                     else:
                         self.s[a.resn] = Qt.Unchecked
+        self.reinitialise()
 
     def reinitialiseFromConfig(self):
         ksorted = sorted(self.s.keys())
         #print("calling initialise from config" + str(len(ksorted)))
-        for xs in self.checklist:
-            xs.grid_remove()
-        self.checklist = []
+        # for xs in self.checklist:
+        #     xs.grid_remove()
+        #self.checklist = []
 
-        for xs in self.buttonlist:
-            xs.grid_remove()
-        self.buttonlist = []
+        # for xs in self.buttonlist:
+        #     xs.grid_remove()
+        #self.buttonlist = []
+        self.filter_group_grid = QtWidgets.QGridLayout()
+
         cntr = 0
 
         if self.AAKEY in ksorted:
-            tmpButton = tk.Checkbutton(self.filterGroup.interior(), text=self.AAKEY, variable=self.s[self.AAKEY])
-            tmpButton.var = self.s[self.AAKEY]
-            tmpButton.grid(sticky=W, row = int(cntr/5), column = (cntr % 5))
-            self.checklist.append(tmpButton)
+            #tmpButton = tk.Checkbutton(self.filterGroup.interior(), text=self.AAKEY, variable=self.s[self.AAKEY])
+            tmpButton = QtWidgets.QCheckBox(text=self.AAKEY)
+            tmpButton.setCheckState(self.s[self.AAKEY])
+            self.filter_group_layout.addWidget(tmpButton)
+            #tmpButton.var = self.s[self.AAKEY]
+            #tmpButton.grid(sticky=W, row = int(cntr/5), column = (cntr % 5))
+            #self.checklist.append(tmpButton)
+            self.filter_group_grid.addWidget(tmpButton, int(cntr/5), cntr % 5)
             cntr = cntr + 1
-            tmpButton = tk.Button(self.filterGroup.interior(), text='?', command=self.stdamMessage, width = 5)
-            tmpButton.grid(sticky=W, row = 0, column=1) # 0,1 = stdam, 0,2 = help
-            tmpButton.var = self.s[self.AAKEY]
-            tmpButton.grid(sticky=W, row = int(cntr/5), column = (cntr % 5))
-            self.checklist.append(tmpButton)
+            #tmpButton = tk.Button(self.filterGroup.interior(), text='?', command=self.stdamMessage, width = 5)
+            tmpButton = QtWidgets.QPushButton("?")
+            tmpButton.clicked.connect(self.stdamMessage)
+            #tmpButton.grid(sticky=W, row = 0, column=1) # 0,1 = stdam, 0,2 = help
+            #tmpButton.var = self.s[self.AAKEY]
+            #tmpButton.grid(sticky=W, row = int(cntr/5), column = (cntr % 5))
+            #self.checklist.append(tmpButton)
+            self.filter_group_grid.addWidget(tmpButton, int(cntr/5), cntr % 5)
             cntr = cntr + 4
         for key in ksorted:
             if key != self.AAKEY:
                     #print("adding button" + key)
-                tmpButton = tk.Checkbutton(self.filterGroup.interior(), text=key, variable=self.s[key])
-                tmpButton.var = self.s[key]
-                tmpButton.grid(sticky=W, row = int(cntr/5), column = (cntr % 5))
-                self.checklist.append(tmpButton)
+                #tmpButton = tk.Checkbutton(self.filterGroup.interior(), text=key, variable=self.s[key])
+                tmpButton = QtWidgets.QCheckBox(text=key)
+                tmpButton.setCheckState(self.s[key])
+                #tmpButton.var = self.s[key]
+                #tmpButton.grid(sticky=W, row = int(cntr/5), column = (cntr % 5))
+                #self.checklist.append(tmpButton)
+                self.filter_group_grid.addWidget(tmpButton, int(cntr/5), cntr % 5)
                 cntr = cntr + 1
     def reinitialise(self):
         #if 1: return
@@ -1372,13 +1378,13 @@ class AnBeKoM(QtWidgets.QDialog):
         ksorted = sorted(self.s.keys())
 
         #print("calling initialise")
-        for xs in self.checklist:
-            xs.grid_remove()
-        self.checklist = []
+        # for xs in self.checklist:
+        #     xs.grid_remove()
+        #self.checklist = []
 
-        for xs in self.buttonlist:
-            xs.grid_remove()
-        self.buttonlist = []
+        # for xs in self.buttonlist:
+        #     xs.grid_remove()
+        #self.buttonlist = []
 
         cntr = 0
         # tady uz setrideny, se STDAM a STDRNA na zacatku
@@ -1386,10 +1392,13 @@ class AnBeKoM(QtWidgets.QDialog):
             #
             #if cntr == 1:
             #    cntr = cntr + 4
-            tmpButton = tk.Checkbutton(self.filterGroup.interior(), text=key, variable=self.s[key])
-            tmpButton.var = self.s[key]
-            tmpButton.grid(sticky=W, row = int(cntr/5), column = (cntr % 5))
-            self.checklist.append(tmpButton)
+            tmpButton = QtWidgets.QCheckBox(text=key)
+            tmpButton.setCheckState(self.s[key])
+            self.filter_group_layout.addWidget(tmpButton)
+            #tmpButton.var = self.s[key]
+            #tmpButton.grid(sticky=W, row = int(cntr/5), column = (cntr % 5))
+            #self.checklist.append(tmpButton)
+            self.filter_group_grid.addWidget(tmpButton, int(cntr/5), cntr % 5)
 
                 # zaridit balloon help -- neni potreba kdyz je tlacitko
                 #if key == "AA":
@@ -1397,10 +1406,14 @@ class AnBeKoM(QtWidgets.QDialog):
                 #  balloon.bind(tmpButton, 'STanDard AMino acids: \n ' + string.join(self.stdam_list, ", "), 'STanDard AMino acids')
 
             # kdyz je tam pridano STDAM, vlozit tam  tedy i napovedu
+            # (English) when STDAM is added there, also insert the help there
             if key == self.AAKEY:
-                self.xButton = tk.Button(self.filterGroup.interior(), text='?', command=self.stdamMessage, width = 5)
-                self.xButton.grid(sticky=W, row = 0, column=1) # 0,1 = stdam, 0,2 = help
-                self.buttonlist.append(self.xButton)
+                #self.xButton = tk.Button(self.filterGroup.interior(), text='?', command=self.stdamMessage, width = 5)
+                self.xButton = QtWidgets.QPushButton("?")
+                self.xButton.clicked.connect(self.stdamMessage)
+                #self.xButton.grid(sticky=W, row = 0, column=1) # 0,1 = stdam, 0,2 = help
+                #self.buttonlist.append(self.xButton)
+                self.filter_group_grid.addWidget(self.xButton, 0, 1)
                 cntr = cntr + 4
 
 
@@ -1468,8 +1481,9 @@ class AnBeKoM(QtWidgets.QDialog):
                 for a in all:
                     Ts = Ts + [self.computecenterRA('id ' + str(a)  + ' and object ' + object)]
 
-        print('Centers: %s' % ', '.join(map(str, Ts)))
-        #print('Centers: ' + Ts)
+        if DEBUG_OUTPUT:
+            print('Centers: %s' % ', '.join(map(str, Ts)))
+            #print('Centers: ' + Ts)
         sumx = 0
         sumy = 0
         sumz = 0
@@ -1480,7 +1494,9 @@ class AnBeKoM(QtWidgets.QDialog):
             sumx += center[0]
             sumy += center[1]
             sumz += center[2]
-        print('Starting point: ' + str(sumx) + " " + str(sumy) + " " + str(sumz) + " " + str(l))
+
+        if DEBUG_OUTPUT:
+            print('Starting point: ' + str(sumx) + " " + str(sumy) + " " + str(sumz) + " " + str(l))
         return (sumx/l, sumy/l, sumz/l)
         # Ts = []
         # detect all residues in selection => SET1
@@ -1504,9 +1520,13 @@ class AnBeKoM(QtWidgets.QDialog):
             centy+=a[1]
             centz+=a[2]
             cnt+=1
-        centx/=cnt
-        centy/=cnt
-        centz/=cnt
+        try:
+            centx/=cnt
+            centy/=cnt
+            centz/=cnt
+        except:
+            print('warning: selection used to compute starting point is empty')
+            return (0, 0, 0)
         return (centx,centy,centz)
 
     def computecenter(self,selection="(all)"):
