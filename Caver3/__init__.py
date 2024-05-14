@@ -4,38 +4,21 @@
 # ============================
 #
 
-from __future__ import division
-from __future__ import generators
-
+import math
+import os
 import re
-import os,math
-
-try:
-    import tkinter as tk
-    from tkinter import *
-except:
-    import Tkinter as tk
-    from Tkinter import *
-
-try:
-    from tkinter import filedialog
-except:
-    import tkFileDialog as filedialog
-
-import Pmw
-import distutils.spawn # used for find_executable
-from pymol import cmd,selector
 import sys
-from pymol.cmd import _feedback,fb_module,fb_mask,is_list,_cmd
-from pymol.cgo import *
-from chempy.models import Indexed
-from chempy import Bond, Atom
 import threading
-#import subprocess
-
-import shutil
-from pymol import stored
 import time
+
+
+from pymol import cgo
+from pymol import cmd
+from pymol import stored
+
+from pymol.Qt import QtCore, QtWidgets
+Qt = QtCore.Qt
+
 #
 # Global config variables
 #
@@ -44,7 +27,6 @@ import time
 # 1 for windows, 0 for linux
 
 def import_file(full_path_to_module):
-    import os
     module_dir, module_file = os.path.split(full_path_to_module)
     module_name, module_ext = os.path.splitext(module_file)
 
@@ -58,20 +40,18 @@ def import_file(full_path_to_module):
     globals()[module_name] = module_obj
     os.chdir(save_cwd)
 
-VERS_M = "3"
-VERS_0 = "0"
-VERS_1 = "3"
+VERS_MAJOR = "3"
+VERS_MINOR = "0"
+VERS_PATCH = "3"
 #JOPTS = "-Xmx@m" # @ is going to be replaced by user-specified value
 #JHEAP = 1100
 
-VERSION = "%s.%s.%s" % (VERS_M,VERS_0,VERS_1)
-VERSION_ = "%s_%s_%s" % (VERS_M,VERS_0,VERS_1)
+VERSION = f"{VERS_MAJOR}.{VERS_MINOR}.{VERS_PATCH}"
+VERSION_ = f"{VERS_MAJOR}_{VERS_MINOR}_{VERS_PATCH}"
 
 CAVER3_LOCATION = os.path.dirname(__file__)
 
 OUTPUT_LOCATION = os.path.abspath(".")
-
-LABEL_TEXT = "Caver directory:"
 
 #
 # Cheap hack for testing purposes
@@ -99,13 +79,28 @@ except ImportError:
 
 # pridani do menu
 def __init__(self):
-    lbb = "Caver %s" % (VERSION,)
+    lbb = f"Caver {VERSION}"
     self.menuBar.addmenuitem('Plugin', 'command',
                              'Launch Caver '  + VERSION,
                              label=lbb,
                              command = lambda s=self: AnBeKoM(s))
 
+dialog = None
 
+def run_plugin_gui():
+    '''
+    Open our custom dialog
+    '''
+    global dialog
+
+    if dialog is None:
+        dialog = AnBeKoM()
+
+    dialog.show()
+
+def __init__plugin__(app=None):
+    from pymol.plugins import addmenuitemqt
+    addmenuitemqt('Caver', run_plugin_gui)
 
 
 defaults = {
@@ -273,16 +268,38 @@ class PyJava:
         if 'OutOfMemory' in output:
             self.insufficient_memory = True
 
-class AnBeKoM:
+class EntryField(QtWidgets.QWidget):
+    """
+    Based on TK EntryField
+    """
+    def __init__(self, label_text: str, value: str, parent: QtWidgets.QWidget = None) -> None:
+        super().__init__(parent)
+        self.label = QtWidgets.QLabel(label_text, parent=self)
+        self.entry = QtWidgets.QLineEdit(value, parent=self)
+        self.layout = QtWidgets.QHBoxLayout()
+        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.entry)
+        self.setLayout(self.layout)
 
-    def pop_error(self, msg):
-        error_dialog = Pmw.MessageDialog(self.parent, title = 'Error',message_text = msg)
+    def setvalue(self, value: str) -> None:
+        """
+        Set the value of the entry field
+        """
+        self.entry.setText(value)
 
+    def getvalue(self) -> str:
+        """
+        Get the value of the entry field
+        """
+        return self.entry.text()
 
+class AnBeKoM(QtWidgets.QDialog):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        parent = self.parent()
 
-    def __init__(self,app):
-        parent = app.root
-        self.parent = parent
+        layout = QtWidgets.QVBoxLayout(self)
+
         # workaround for list binding
         self.configJustLoaded = 0
         #by default select all
@@ -290,145 +307,201 @@ class AnBeKoM:
 
         self.dataStructure = DataStruct()
 
-        self.optimizeNearValue = StringVar()
-        self.optimizeNearValue.set("4.0")
-        self.optimizeRadius = StringVar()
-        self.optimizeRadius.set("1.8")
+        self.optimizeNearValue = QtWidgets.QLineEdit("4.0")
+        self.optimizeRadius = QtWidgets.QLineEdit("1.8")
         self.AAKEY = "20_AA"
         self.inputsSubdir = "inputs"
         #ignore structures which match the follwing regexps
         self.ignoreStructures = [r"^origins$",r"_origins$", r"_v_origins$", r"_t\d\d\d_\d$"]
 
         # Create the dialog.
-        self.dialog = Pmw.Dialog(parent,
-                                 buttons = (defaults["compute_command"], defaults["exit_command"]),
-                                 #defaultbutton = 'Run CAVER',
-                                 title = 'Caver ' + VERSION,
-                                 command = self.execute)
-        self.dialog.withdraw()
-        lbb = "Caver %s" % (VERSION,)
+        # TODO
+        # self.dialog = Pmw.Dialog(parent,
+        #                          buttons = (defaults["compute_command"], defaults["exit_command"]),
+        #                          #defaultbutton = 'Run CAVER',
+        #                          title = 'Caver ' + VERSION,
+        #                          command = self.execute)
+        #self.dialog.withdraw()
 
-        w = tk.Label(self.dialog.interior(),
-                                text = lbb ,
-                                background = 'orange',
-                                foreground = 'white',
-                                #padx = 100,
-                                )
-        #w.config(font=labelfont)
-        w.pack(expand = 1, fill = 'both', padx = 4, pady = 4)
-        ww = tk.Button(self.dialog.interior(), text = 'Help and how to cite', command = self.launchHelp)
-        ww.pack()
+        version_text = f"Caver {VERSION}"
+        label = QtWidgets.QLabel(text=version_text, parent=parent)
+        label.setStyleSheet("background-color: orange; color: white;")
+        label.setMargin(4)
+
+        button = QtWidgets.QPushButton("Help and how to cite", parent=parent)
+        button.clicked.connect(self.launchHelp)
+
+        layout.addWidget(label)
+        layout.addWidget(button)
 
 
         #self.stdam_list = [ 'ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL', 'ASX', 'CYX', 'GLX', 'HI0', 'HID', 'HIE', 'HIM', 'HIP', 'MSE', 'ACE', 'ASH', 'CYM', 'GLH', 'LYN', 'NME']
         self.stdam_list = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
 
-        def quickFileValidation(s):
-            if s == '': return Pmw.PARTIAL
-            elif os.path.isfile(s): return Pmw.OK
-            elif os.path.exists(s): return Pmw.PARTIAL
-            else: return Pmw.PARTIAL
+        # def quickFileValidation(s):
+        #     if s == '': return Pmw.PARTIAL
+        #     elif os.path.isfile(s): return Pmw.OK
+        #     elif os.path.exists(s): return Pmw.PARTIAL
+        #     else: return Pmw.PARTIAL
 
         self.caver3locationAbsolute = CAVER3_LOCATION
         # hide the location field, not sure whether this is a good step, should not be visible at least read-only?
+        
+        LABEL_TEXT = "Caver directory:"
         if (0):
-            self.caver3location = Pmw.EntryField(self.dialog.interior(),
-                                         labelpos='w',
-                                         value = CAVER3_LOCATION,
-                                         label_text = LABEL_TEXT)
+            entry_field = EntryField(label_text=LABEL_TEXT, value=CAVER3_LOCATION)
+            layout.addWidget(entry_field)
+            
+            # self.caver3location = Pmw.EntryField(self.dialog.interior(),
+            #                              labelpos='w',
+            #                              value = CAVER3_LOCATION,
+            #                              label_text = LABEL_TEXT)
 
 
-            self.caver3location.pack(fill='x',padx=4,pady=1) # vertical
+            # self.caver3location.pack(fill='x',padx=4,pady=1) # vertical
 #win/linux
-        self.binlocation = Pmw.EntryField(self.dialog.interior(),
-                                     labelpos='w',
-                                     value = OUTPUT_LOCATION,
-                                     label_text = 'Output directories:')
+        layout.addWidget(EntryField(label_text="Output directories:", value=OUTPUT_LOCATION))
+        # self.binlocation = Pmw.EntryField(self.dialog.interior(),
+        #                              labelpos='w',
+        #                              value = OUTPUT_LOCATION,
+        #                              label_text = 'Output directories:')
 
 
-        self.binlocation.pack(fill='x',padx=4,pady=1) # vertical
-        self.configgroup = Pmw.Group(self.dialog.interior(), tag_text='Configuration save/load')
+        #self.binlocation.pack(fill='x',padx=4,pady=1) # vertical
+        self.configgroup = QtWidgets.QGroupBox("Configuration save/load")
+        self.configgroup_layout = QtWidgets.QVBoxLayout(self.configgroup)
+        #self.configgroup = Pmw.Group(self.dialog.interior(), tag_text='Configuration save/load')
         self.conflocationDefault = os.path.join(self.caver3locationAbsolute,"config.txt")
         self.DEFCONF = "(default config used)"
-        self.conflocation = tk.Label(self.configgroup.interior(),text = self.DEFCONF)
+        self.conflocation = QtWidgets.QLabel(self.DEFCONF)
+        self.configgroup_layout.addWidget(self.conflocation)
+        #self.conflocation = tk.Label(self.configgroup.interior(),text = self.DEFCONF)
         #self.conflocation = Pmw.EntryField(self.configgroup.interior(),
         #                             labelpos='w',
         #                             value = self.DEFCONF,
         #                             label_text = 'Config location:')
-        self.conflocation.pack(side=LEFT, padx=4,pady=1)
+        #self.conflocation.pack(side=LEFT, padx=4,pady=1)
 
-        self.configfilesave = tk.Button(self.configgroup.interior(), text = 'Save settings', command = self.configout)
-        self.configfilesave.pack(side=RIGHT,padx=4,pady=1)
-        self.configfileload = tk.Button(self.configgroup.interior(), text = 'Load settings', command = self.configin)
-        self.configfileload.pack(side=RIGHT,padx=4,pady=1)
+        self.configfilesave = QtWidgets.QPushButton("Save settings")
+        self.configfilesave.clicked.connect(self.configout)
+        self.configgroup_layout.addWidget(self.configfilesave)
+        #self.configfilesave = tk.Button(self.configgroup.interior(), text = 'Save settings', command = self.configout)
+        #self.configfilesave.pack(side=RIGHT,padx=4,pady=1)
+        self.configfileload = QtWidgets.QPushButton("Load settings")
+        self.configfileload.clicked.connect(self.configin)
+        self.configgroup_layout.addWidget(self.configfileload)
+        #self.configfileload = tk.Button(self.configgroup.interior(), text = 'Load settings', command = self.configin)
+        #self.configfileload.pack(side=RIGHT,padx=4,pady=1)
 
-        self.configgroup.pack(expand="yes", fill="x")
+        layout.addWidget(self.configgroup)
 
-        self.javaHeap = Pmw.EntryField(self.dialog.interior(),
-                                     labelpos='w',
-                                     value = defaults["default_java_heap"],
-                                     label_text = 'Maximum Java heap size (MB):')
-        self.javaHeap.pack(fill='x',padx=4,pady=1) # vertical
-        self.tunnelsProbe = Pmw.EntryField(self.dialog.interior(),
-                                     labelpos='w',
-                                     value = defaults["default_tunnels_probe"],
-                                     label_text = 'Minimum probe radius:')
+        #self.configgroup.pack(expand="yes", fill="x")
 
+        self.javaHeap = EntryField(label_text='Maximum Java heap size (MB):', value=defaults["default_java_heap"])
+        layout.addWidget(self.javaHeap)
+        # self.javaHeap = Pmw.EntryField(self.dialog.interior(),
+        #                              labelpos='w',
+        #                              value = defaults["default_java_heap"],
+        #                              label_text = 'Maximum Java heap size (MB):')
+        # self.javaHeap.pack(fill='x',padx=4,pady=1) # vertical
 
-        self.tunnelsProbe.pack(fill='x',padx=4,pady=1) # vertical
-        self.shellDepth = Pmw.EntryField(self.dialog.interior(),
-                                     labelpos='w',
-                                     value = defaults["default_shell_depth"],
-                                     label_text = 'Shell depth:')
+        self.tunnelsProbe = EntryField(label_text='Minimum probe radius:', value=defaults["default_tunnels_probe"])
+        layout.addWidget(self.tunnelsProbe)
+        # self.tunnelsProbe = Pmw.EntryField(self.dialog.interior(),
+        #                              labelpos='w',
+        #                              value = defaults["default_tunnels_probe"],
+        #                              label_text = 'Minimum probe radius:')
+        # self.tunnelsProbe.pack(fill='x',padx=4,pady=1) # vertical
 
+        self.shellDepth = EntryField(label_text='Shell depth:', value=defaults["default_shell_depth"])
+        layout.addWidget(self.shellDepth)
+        # self.shellDepth = Pmw.EntryField(self.dialog.interior(),
+        #                                  labelpos='w',
+        #                                  value=defaults["default_shell_depth"],
+        #                                  label_text='Shell depth:')
+        #self.shellDepth.pack(fill='x',padx=4,pady=1) # vertical
 
-        self.shellDepth.pack(fill='x',padx=4,pady=1) # vertical
-        self.shellRadius = Pmw.EntryField(self.dialog.interior(),
-                                     labelpos='w',
-                                     value = defaults["default_shell_radius"],
-                                     label_text = 'Shell radius:')
+        self.shellRadius = EntryField(label_text='Shell radius:', value=defaults["default_shell_radius"])
+        layout.addWidget(self.shellRadius)
+        #self.shellRadius = Pmw.EntryField(self.dialog.interior(),
+        #                             labelpos='w',
+        #                             value = defaults["default_shell_radius"],
+        #                             label_text = 'Shell radius:')
+        #self.shellRadius.pack(fill='x',padx=4,pady=1) # vertical
 
+        self.clusteringThreshold = EntryField(label_text='Clustering threshold:', value=defaults["default_clustering_threshold"])
+        #self.clusteringThreshold = Pmw.EntryField(self.dialog.interior(),
+        #                             labelpos='w',
+        #                             value = defaults["default_clustering_threshold"],
+        #                             label_text = 'Clustering threshold:')
+        layout.addWidget(self.clusteringThreshold)
+        #self.clusteringThreshold.pack(fill='x',padx=4,pady=1) # vertical
 
-        self.shellRadius.pack(fill='x',padx=4,pady=1) # vertical
-        self.clusteringThreshold = Pmw.EntryField(self.dialog.interior(),
-                                     labelpos='w',
-                                     value = defaults["default_clustering_threshold"],
-                                     label_text = 'Clustering threshold:')
+        #self.approxLbl = Label(self.dialog.interior(), text="Number of approximating balls:")
+        #self.approxLbl.pack()
+        self.approxLbl = QtWidgets.QLabel("Number of approximating balls:")
+        layout.addWidget(self.approxLbl)
 
+        self.approxVar = QtWidgets.QLineEdit("4")
+        #self.approxVar = StringVar()
+        #self.approxVar.set("4") #default value
 
-        self.clusteringThreshold.pack(fill='x',padx=4,pady=1) # vertical
-        self.approxLbl = Label(self.dialog.interior(), text="Number of approximating balls:")
-        self.approxLbl.pack()
-        self.approxVar = StringVar()
-        self.approxVar.set("4") #default value
-        self.approxSph = OptionMenu(self.dialog.interior(), self.approxVar, "4", "6", "8", "12", "20")
+        self.approxSph = QtWidgets.QComboBox()
+        self.approxSph.addItems(["4", "6", "8", "12", "20"])
+        layout.addWidget(self.approxSph)
+        #self.approxSph = OptionMenu(self.dialog.interior(), self.approxVar, "4", "6", "8", "12", "20")
         #self.approxVar.set(DEFAULTVALUE_OPTION)
-        self.approxSph.pack()
+        #self.approxSph.pack()
 
-        labframe0 = tk.Frame(self.dialog.interior())
-        labframe0.pack(fill='x',padx=4,pady=2)
-
-        self.varremovewater = IntVar()
-
-        self.removewaterbutton = Checkbutton(labframe0, text="Ignore waters", variable=self.varremovewater)
-        self.varremovewater.set(1)
-
-        self.inModelGroup = Pmw.Group(self.dialog.interior(), tag_text='Input model:')
-        self.listbox1 = tk.Listbox(self.inModelGroup.interior(), width=25, height=6,exportselection=0)
-        self.listbox1.bind('<<ListboxSelect>>',self.inputAnalyseWrap)
-        yscroll1 = tk.Scrollbar(self.inModelGroup.interior(),command=self.listbox1.yview, orient=tk.VERTICAL)
-        self.listbox1.pack(side=LEFT)
-        yscroll1.pack(side=LEFT, fill='y')
-        self.listbox1.configure(yscrollcommand=yscroll1.set)
-        self.reloadListButton = tk.Button(self.inModelGroup.interior(), text = 'Reload', command = self.updateList)
-        self.reloadListButton.pack(side=LEFT)
-        self.inModelGroup.pack()
+        #labframe0 = tk.Frame(self.dialog.interior())
+        #labframe0.pack(fill='x',padx=4,pady=2)
+        labframe0 = QtWidgets.QFrame()
+        layout.addWidget(labframe0)
 
 
+        self.varremovewater = QtWidgets.QCheckBox("Ignore waters")
+        self.varremovewater.setChecked(True)
+        #self.varremovewater = IntVar()
+
+        #self.removewaterbutton = Checkbutton(labframe0, text="Ignore waters", variable=self.varremovewater)
+        #self.varremovewater.set(1)
+
+        self.inModelGroup = QtWidgets.QGroupBox("Input model:")
+        model_group_layout = QtWidgets.QVBoxLayout()
+        self.listbox1 = QtWidgets.QListWidget()
+        self.listbox1.setMinimumSize(25, 6)
+        self.listbox1.itemSelectionChanged.connect(self.inputAnalyseWrap)
+        model_group_layout.addWidget(self.listbox1)
+        yscroll1 = QtWidgets.QScrollBar(QtCore.Qt.Vertical)
+        self.listbox1.setVerticalScrollBar(yscroll1)
+        model_group_layout.addWidget(yscroll1)
+        self.reloadListButton = QtWidgets.QPushButton("Reload")
+        self.reloadListButton.clicked.connect(self.updateList)
+        model_group_layout.addWidget(self.reloadListButton)
+        self.inModelGroup.setLayout(model_group_layout)
+        layout.addWidget(self.inModelGroup)
+
+        
+        #self.inModelGroup = Pmw.Group(self.dialog.interior(), tag_text='Input model:')
+        #self.listbox1 = tk.Listbox(self.inModelGroup.interior(), width=25, height=6,exportselection=0)
+        #self.listbox1.bind('<<ListboxSelect>>',self.inputAnalyseWrap)
+        # yscroll1 = tk.Scrollbar(self.inModelGroup.interior(),command=self.listbox1.yview, orient=tk.VERTICAL)
+        # self.listbox1.pack(side=LEFT)
+        # yscroll1.pack(side=LEFT, fill='y')
+        # self.listbox1.configure(yscrollcommand=yscroll1.set)
+        # self.reloadListButton = tk.Button(self.inModelGroup.interior(), text = 'Reload', command = self.updateList)
+        # self.reloadListButton.pack(side=LEFT)
+        # self.inModelGroup.pack()
 
 
-        self.filterGroup = Pmw.Group(self.dialog.interior(), tag_text='Input atoms:')
-        self.filterGroup.pack()
+
+        self.filterGroup = QtWidgets.QGroupBox("Input atoms:")
+        filter_group_layout = QtWidgets.QVBoxLayout()
+        self.filterGroup.setLayout(filter_group_layout)
+        layout.addWidget(self.filterGroup)
+
+        #self.filterGroup = Pmw.Group(self.dialog.interior(), tag_text='Input atoms:')
+        #self.filterGroup.pack()
         self.checklist = []
         self.buttonlist = []
 
@@ -442,108 +515,214 @@ class AnBeKoM:
         #  tindex = tindex + 1
 
         self.s = dict()
-        self.s[self.AAKEY] = IntVar()
+        # TODO: self.s[self.AAKEY] = IntVar()
         #print("reinitialise&inputAnalyse")
         #self.reinitialise()
         #initialise should be done after config load
 
 
 
+        groupstart = QtWidgets.QGroupBox("Starting point")
+        start_group_layout = QtWidgets.QVBoxLayout()
+        groupstart.setLayout(start_group_layout)
+        layout.addWidget(groupstart)
+        #groupstart = Pmw.Group(self.dialog.interior(),tag_text='Starting point')
 
-        groupstart = Pmw.Group(self.dialog.interior(),tag_text='Starting point')
+        self.surroundingsvar = None# TODO: ???
+        #self.surroundingsvar = tk.IntVar()
 
-        self.surroundingsvar = tk.IntVar()
+        radioframe = QtWidgets.QFrame()
+        radioframe_layout = QtWidgets.QHBoxLayout(radioframe)
+        start_group_layout.addWidget(radioframe)
+        #radioframe = tk.Frame(groupstart.interior())
+        group1 = QtWidgets.QGroupBox("Convert surroundings to x,y,x coordinates of starting point")
+        group1_layout = QtWidgets.QVBoxLayout()
+        group1.setLayout(group1_layout)
 
-        radioframe = tk.Frame(groupstart.interior())
-        group1 = Pmw.Group(radioframe,
-                tag_text='Convert surroundings to x,y,x coordinates of starting point')
+        radioframe_layout.addWidget(group1)
+        #radioframe.addWidget(group1)
+        #group1 = Pmw.Group(radioframe,
+        #        tag_text='Convert surroundings to x,y,x coordinates of starting point')
 
-        group1.pack(side='top',expand = 'yes',fill='x')
-        self.selectionlist = Pmw.EntryField(group1.interior(),
-                                  labelpos='w',
-                                  label_text='Specify selection: ',
-                                  value=defaults['surroundings'],
-                                  entry_width=50
-                                  )
-        self.selectionlist.pack(fill='x',expand='yes',padx=4,pady=1) # vertical
+        #group1.pack(side='top',expand = 'yes',fill='x')
 
-        self.convertButton = tk.Button(group1.interior(), text = 'Convert to x,y,z', command = self.convert)
-        self.convertButton.pack(fill='x',expand='yes',padx=4,pady=1)
+        self.selectionlist = EntryField(label_text='Specify selection:', value=defaults['surroundings'])
+        group1_layout.addWidget(self.selectionlist)
+        #self.selectionlist = Pmw.EntryField(group1.interior(),
+        #                          labelpos='w',
+        #                          label_text='Specify selection: ',
+        #                          value=defaults['surroundings'],
+        #                          entry_width=50
+        #                          )
+        #self.selectionlist.pack(fill='x',expand='yes',padx=4,pady=1) # vertical
 
-        group2 = Pmw.Group(radioframe,
-                tag_text='x, y, z coordinates of starting point')
-        group2.pack(fill = 'x', expand = 1, side='top')
-        radioframe.pack(side='left',expand='yes',fill='x')
+        self.convertButton = QtWidgets.QPushButton("Convert to x,y,z")
+        self.convertButton.clicked.connect(self.convert)
+        group1_layout.addWidget(self.convertButton)
+        #self.convertButton = tk.Button(group1.interior(), text = 'Convert to x,y,z', command = self.convert)
+        #self.convertButton.pack(fill='x',expand='yes',padx=4,pady=1)
+
+        
+        group2 = QtWidgets.QGroupBox("x, y, z coordinates of starting point")
+        group2_layout = QtWidgets.QVBoxLayout()
+        group2.setLayout(group2_layout)
+        radioframe_layout.addWidget(group2)
+
+        #group2 = Pmw.Group(radioframe,
+        #        tag_text='x, y, z coordinates of starting point')
+        #group2.pack(fill = 'x', expand = 1, side='top')
+        #radioframe.pack(side='left',expand='yes',fill='x')
 #-------------
-        groupstart.pack(padx=4,pady=1,expand='yes',fill='x')
+        #groupstart.pack(padx=4,pady=1,expand='yes',fill='x')
 
-        self.xlocvar=DoubleVar()
-        self.xlocvar.set(float(defaults["startingpoint"][0]))
-        self.ylocvar=DoubleVar()
-        self.ylocvar.set(float(defaults["startingpoint"][1]))
-        self.zlocvar=DoubleVar()
-        self.zlocvar.set(float(defaults["startingpoint"][2]))
+        self.xlocvar = QtWidgets.QDoubleSpinBox()
+        self.xlocvar.setValue(float(defaults["startingpoint"][0]))
+        self.ylocvar = QtWidgets.QDoubleSpinBox()
+        self.ylocvar.setValue(float(defaults["startingpoint"][1]))
+        self.zlocvar = QtWidgets.QDoubleSpinBox()
+        self.zlocvar.setValue(float(defaults["startingpoint"][2]))
 
-        self.xlocfr = tk.Frame(group2.interior())
-        labX = Label(self.xlocfr,text="x")
-        self.xlocation = Entry(self.xlocfr,textvariable=self.xlocvar,width=10)
-        self.scrX=Scrollbar(self.xlocfr,orient="horizontal",command=self.changeValueX)
+        # self.xlocvar=DoubleVar()
+        # self.xlocvar.set(float(defaults["startingpoint"][0]))
+        # self.ylocvar=DoubleVar()
+        # self.ylocvar.set(float(defaults["startingpoint"][1]))
+        # self.zlocvar=DoubleVar()
+        # self.zlocvar.set(float(defaults["startingpoint"][2]))
 
-        self.ylocfr = tk.Frame(group2.interior())
-        labY = Label(self.ylocfr,text="y")
-        self.ylocation = Entry(self.ylocfr,textvariable=self.ylocvar,width=10)
-        self.scrY=Scrollbar(self.ylocfr,orient="horizontal",command=self.changeValueY)
+        self.xlocfr = QtWidgets.QFrame()
+        xlocfr_layout = QtWidgets.QHBoxLayout(self.xlocfr)
+        group2_layout.addWidget(self.xlocfr)
+        labX = QtWidgets.QLabel("x")
+        self.xlocation = QtWidgets.QLineEdit(text=str(self.xlocvar.value()))
+        self.scrX = QtWidgets.QScrollBar(QtCore.Qt.Horizontal)
+        xlocfr_layout.addWidget(labX)
+        xlocfr_layout.addWidget(self.xlocation)
+        xlocfr_layout.addWidget(self.scrX)
 
-        self.zlocfr = tk.Frame(group2.interior())
-        labZ = Label(self.zlocfr,text="z")
-        self.zlocation = Entry(self.zlocfr,textvariable=self.zlocvar,width=10)
-        self.scrZ=Scrollbar(self.zlocfr,orient="horizontal",command=self.changeValueZ)
+        # self.xlocfr = tk.Frame(group2.interior())
+        # labX = Label(self.xlocfr,text="x")
+        # self.xlocation = Entry(self.xlocfr,textvariable=self.xlocvar,width=10)
+        # self.scrX=Scrollbar(self.xlocfr,orient="horizontal",command=self.changeValueX)
 
-        labX.pack(side=LEFT)
-        self.xlocation.pack(side=LEFT)
-        self.scrX.pack(side=LEFT)
-        self.xlocfr.pack(side=LEFT,fill='x',padx=4,pady=1) # vertical
-        labY.pack(side=LEFT)
-        self.ylocation.pack(side=LEFT)
-        self.scrY.pack(side=LEFT)
-        self.ylocfr.pack(side=LEFT,fill='x',padx=4,pady=1) # vertical
-        labZ.pack(side=LEFT)
-        self.zlocation.pack(side=LEFT)
-        self.scrZ.pack(side=LEFT)
-        self.zlocfr.pack(side=LEFT,fill='x',padx=4,pady=1) # vertical
+        self.ylocfr = QtWidgets.QFrame()
+        ylocfr_layout = QtWidgets.QHBoxLayout(self.ylocfr)
+        group2_layout.addWidget(self.ylocfr)
+        labY = QtWidgets.QLabel("y")
+        self.ylocation = QtWidgets.QLineEdit(text=str(self.ylocvar.value()))
+        self.scrY = QtWidgets.QScrollBar(QtCore.Qt.Horizontal)
+        ylocfr_layout.addWidget(labY)
+        ylocfr_layout.addWidget(self.ylocation)
+        ylocfr_layout.addWidget(self.scrY)
 
-        self.OpGroup = Pmw.Group(radioframe,tag_text = "Starting point optimization")
-        self.OpGroup.pack(fill='x')
-        self.optimizeLabel = tk.Label(self.OpGroup.interior(),text = 'Maximum distance (A): ')
-        self.optimizeLabel.pack(side=LEFT)
+        # self.ylocfr = tk.Frame(group2.interior())
+        # labY = Label(self.ylocfr,text="y")
+        # self.ylocation = Entry(self.ylocfr,textvariable=self.ylocvar,width=10)
+        # self.scrY=Scrollbar(self.ylocfr,orient="horizontal",command=self.changeValueY)
 
-        self.optimizeNear = tk.Entry(self.OpGroup.interior(),textvariable=self.optimizeNearValue,justify='right', width=10)
-        self.optimizeNear.pack(side=LEFT,padx=4,pady=1)
-        self.optimizeLabel2 = tk.Label(self.OpGroup.interior(),text="Desired radius (A):")
-        self.optimizeLabel2.pack(side=LEFT, padx=0, pady=1)
-        self.optimizeNear = tk.Entry(self.OpGroup.interior(),textvariable=self.optimizeRadius,justify='right', width=10)
-        self.optimizeNear.pack(side=LEFT,padx=4,pady=1)
+        self.zlocfr = QtWidgets.QFrame()
+        zlocfr_layout = QtWidgets.QHBoxLayout(self.zlocfr)
+        group2_layout.addWidget(self.zlocfr)
+        labZ = QtWidgets.QLabel("z")
+        self.zlocation = QtWidgets.QLineEdit(text=str(self.zlocvar.value()))
+        self.scrZ = QtWidgets.QScrollBar(QtCore.Qt.Horizontal)
+        zlocfr_layout.addWidget(labZ)
+        zlocfr_layout.addWidget(self.zlocation)
+        zlocfr_layout.addWidget(self.scrZ)
+    
+        # self.zlocfr = tk.Frame(group2.interior())
+        # labZ = Label(self.zlocfr,text="z")
+        # self.zlocation = Entry(self.zlocfr,textvariable=self.zlocvar,width=10)
+        # self.scrZ=Scrollbar(self.zlocfr,orient="horizontal",command=self.changeValueZ)
+
+        # labX.pack(side=LEFT)
+        # self.xlocation.pack(side=LEFT)
+        # self.scrX.pack(side=LEFT)
+        # self.xlocfr.pack(side=LEFT,fill='x',padx=4,pady=1) # vertical
+        # labY.pack(side=LEFT)
+        # self.ylocation.pack(side=LEFT)
+        # self.scrY.pack(side=LEFT)
+        # self.ylocfr.pack(side=LEFT,fill='x',padx=4,pady=1) # vertical
+        # labZ.pack(side=LEFT)
+        # self.zlocation.pack(side=LEFT)
+        # self.scrZ.pack(side=LEFT)
+        # self.zlocfr.pack(side=LEFT,fill='x',padx=4,pady=1) # vertical
+
+        self.OpGroup = QtWidgets.QGroupBox("Starting point optimization")
+        optimization_group_layout = QtWidgets.QVBoxLayout()
+        self.OpGroup.setLayout(optimization_group_layout)
+        self.optimizeLabel = QtWidgets.QLabel("Maximum distance (A):")
+        optimization_group_layout.addWidget(self.optimizeLabel)
+        radioframe_layout.addWidget(self.OpGroup)
+        #self.OpGroup = Pmw.Group(radioframe,tag_text = "Starting point optimization")
+        #self.OpGroup.pack(fill='x')
+        #self.optimizeLabel = tk.Label(self.OpGroup.interior(),text = 'Maximum distance (A): ')
+        #self.optimizeLabel.pack(side=LEFT)
+
+        self.optimizeNear = QtWidgets.QLineEdit("4.0")
+        optimization_group_layout.addWidget(self.optimizeNear)
+        self.optimizeLabel2 = QtWidgets.QLabel("Desired radius (A):")
+        optimization_group_layout.addWidget(self.optimizeLabel2)
+
+
+        # TODO
+        # self.optimizeNear = tk.Entry(self.OpGroup.interior(),textvariable=self.optimizeNearValue,justify='right', width=10)
+        # self.optimizeNear.pack(side=LEFT,padx=4,pady=1)
+        # self.optimizeLabel2 = tk.Label(self.OpGroup.interior(),text="Desired radius (A):")
+        # self.optimizeLabel2.pack(side=LEFT, padx=0, pady=1)
+        # self.optimizeNear = tk.Entry(self.OpGroup.interior(),textvariable=self.optimizeRadius,justify='right', width=10)
+        # self.optimizeNear.pack(side=LEFT,padx=4,pady=1)
         #self.optimizeButton = tk.Button(self.OpGroup.interior(), text = 'Optimize', command = self.optimize)
         #self.optimizeButton.pack(side=LEFT,padx=5,pady=1)
         #self.UoptimizeButton = tk.Button(self.OpGroup.interior(), text = 'Undo', command = self.uoptimize)
         #self.UoptimizeButton.pack(side=LEFT,padx=1,pady=1)
-        self.egroup = Pmw.Group(self.dialog.interior(),tag_text = "Computation result")
-        self.egroup.pack(fill='x')
-        self.aftercomp = tk.Label(self.egroup.interior(),text="test",justify='right')
-        self.aftercomp.pack(side=LEFT,padx=4,pady=1)
-        self.afterbutt = tk.Button(self.egroup.interior(), text='Details', command=self.details, width = 5)
-        self.afterbutt.pack(side=RIGHT,padx=4,pady=1)
-        self.afterbutt.config(state=DISABLED)
+
+        self.egroup = QtWidgets.QGroupBox("Computation result")
+        egroup_layout = QtWidgets.QVBoxLayout()
+        self.egroup.setLayout(egroup_layout)
+        self.aftercomp = QtWidgets.QLabel("test")
+        egroup_layout.addWidget(self.aftercomp)
+        self.afterbutt = QtWidgets.QPushButton("Details")
+        self.afterbutt.clicked.connect(self.details)
+        egroup_layout.addWidget(self.afterbutt)
+        self.afterbutt.setEnabled(False)
+        layout.addWidget(self.egroup)
+
+        buttonBox = QtWidgets.QDialogButtonBox()
+        okButton = buttonBox.addButton(QtWidgets.QDialogButtonBox.Ok)
+        okButton.setText(defaults["compute_command"])
+        okButton.clicked.connect(self.execute)
+        cancelButton = buttonBox.addButton(QtWidgets.QDialogButtonBox.Cancel)
+        cancelButton.setText(defaults["exit_command"])
+        cancelButton.clicked.connect(self.reject)
+
+        layout.addWidget(buttonBox)
+
+        # self.egroup = Pmw.Group(self.dialog.interior(),tag_text = "Computation result")
+        # self.egroup.pack(fill='x')
+        # self.aftercomp = tk.Label(self.egroup.interior(),text="test",justify='right')
+        # self.aftercomp.pack(side=LEFT,padx=4,pady=1)
+        # self.afterbutt = tk.Button(self.egroup.interior(), text='Details', command=self.details, width = 5)
+        # self.afterbutt.pack(side=RIGHT,padx=4,pady=1)
+        # self.afterbutt.config(state=DISABLED)
     #hide group for now
-        self.egroup.pack_forget()
+
+        self.egroup.hide()
+        #self.egroup.pack_forget()
 
         cf = self.getConfLoc()
         self.configLoad(cf)
 
         self.inputAnalyse()
         self.showAppModal()
+
+
+    def pop_error(self, msg):
+        #error_dialog = Pmw.MessageDialog(self.parent, title = 'Error',message_text = msg)
+        error_dialog = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error', msg)
+        error_dialog.exec_()
+
     def getConfLoc(self):
-        cf = self.conflocation.cget("text")
+        cf = self.conflocation.text()
         if cf == self.DEFCONF:
             return self.conflocationDefault
         else:
@@ -573,7 +752,7 @@ class AnBeKoM:
 
 
     def showAppModal(self):
-        self.dialog.show()
+        self.show()
 
     def structureIgnored(self, name):
         for key in self.ignoreStructures:
@@ -582,17 +761,31 @@ class AnBeKoM:
         return 0
     def updateList(self):
         #print("updateList")
-        self.listbox1.delete(0, tk.END)
-        #fill with data
-        self.listbox1.selection_set(0, 0) # Default sel
+        # Clear all items
+        self.listbox1.clear()
+
+        # Fill with data
         tindex = 0
         for item in cmd.get_object_list():
             stri = str(item)
             if not self.structureIgnored(stri):
-                self.listbox1.insert(tindex,str(item))
+                self.listbox1.insertItem(tindex, stri)
                 tindex = tindex + 1
-        #select first by default
-        self.listbox1.select_set(0)
+
+        # Select first by default
+        if self.listbox1.count() > 0:
+            self.listbox1.setCurrentRow(0)
+        # self.listbox1.delete(0, tk.END)
+        # #fill with data
+        # self.listbox1.selection_set(0, 0) # Default sel
+        # tindex = 0
+        # for item in cmd.get_object_list():
+        #     stri = str(item)
+        #     if not self.structureIgnored(stri):
+        #         self.listbox1.insert(tindex,str(item))
+        #         tindex = tindex + 1
+        # #select first by default
+        # self.listbox1.select_set(0)
         self.inputAnalyse()
 
     def launchHelp(self):
@@ -600,7 +793,7 @@ class AnBeKoM:
         webbrowser.open(url)
 
     def details(self):
-        fc = self.loadFileContent("%s/warnings.txt" % (self.out_dir))
+        fc = self.loadFileContent(f"{self.out_dir}/warnings.txt")
         error_dialog = Pmw.MessageDialog(self.parent,title = 'Information', message_text = fc,)
 
     def loadFileContent(self, file):
@@ -724,7 +917,7 @@ class AnBeKoM:
             #cmd.load_model(newmodel,"tmpCaverModel")
             #cmd.label("example","name")
 
-            input = "%s/%s.pdb" % (outdirInputs, self.whichModelSelect)
+            input = f"{outdirInputs}/{self.whichModelSelect}.pdb"
             cmd.set('retain_order',1)
             cmd.sort()
             cmd.save(input, self.whichModelSelect) # to by ulozilo cely model whichModelSelect.
@@ -770,13 +963,17 @@ class AnBeKoM:
             # adjust gui to display warnings & group
             self.egroup.pack(fill="x")
 
-            err = "%s/warnings.txt" % (self.out_dir)
+            err = f"{self.out_dir}/warnings.txt" % (self.out_dir)
             if os.path.exists(err) and os.stat(err)[6] == 0:
-                self.aftercomp.config(text="Computation finished succesfully")
-                self.afterbutt.config(state=DISABLED)
+                self.aftercomp.setText("Computation finished succesfully")
+                self.afterbutt.setEnabled(False)
+                #self.aftercomp.config(text="Computation finished succesfully")
+                #self.afterbutt.config(state=DISABLED)
             else:
-                self.aftercomp.config(text="Warnings detected during computation")
-                self.afterbutt.config(state=ACTIVE)
+                self.aftercomp.setText("Warnings detected during computation")
+                self.afterbutt.setEnabled(True)
+                #self.aftercomp.config(text="Warnings detected during computation")
+                #self.afterbutt.config(state=ACTIVE)
 
             #pass
             #self.deleteTemporaryFiles()
@@ -789,12 +986,12 @@ class AnBeKoM:
                     #
                     # dies with traceback, but who cares
                     #
-                self.parent.destroy()
+                self.parent().close()
             else:
                 #self.dialog.deactivate(result)
                 #global CAVER_BINARY_LOCATION
                 #CAVER_BINARY_LOCATION = self.out_dir
-                self.dialog.withdraw()
+                self.hide()
 
     def CreateDirectory(self,dir):
         if os.path.isdir(dir):
@@ -812,7 +1009,8 @@ class AnBeKoM:
         for a in sel.atom:
             cnt+=1
         if cnt == 0:
-            error_dialog = Pmw.MessageDialog(self.parent,title = 'Error',message_text = 'ERROR: No molecule loaded.',)
+            error_dialog = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Critical, 'Error', 'ERROR: No molecule loaded.')
+            error_dialog.exec_()
         #try:
         if 1:
             startpoint=[]
@@ -837,16 +1035,18 @@ class AnBeKoM:
 
     def configin(self):
         indi = os.path.dirname(self.getConfLoc())
-        filepath = filedialog.askopenfilename(title="Open config file", initialdir=indi, filetypes=[("config txt file","*.txt"), ("all files","*.*")])
+        filepath, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open config file", indi, "config txt file (*.txt);;all files (*.*)")
         if not filepath: return
-        self.conflocation.config(text=filepath)
+        self.conflocation.setText(filepath)
         self.configLoad(self.getConfLoc())
         self.configJustLoaded = 1
+
     def configout(self):
         indi = os.path.dirname(self.getConfLoc())
-        filepath = filedialog.asksaveasfilename(title="Save config file", initialdir=indi,filetypes=[("config txt file","*.txt"), ("all files","*.*")], defaultextension='.txt')
+        filepath, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save config file", indi, "config txt file (*.txt);;all files (*.*)")
         if not filepath: return
         self.configSave(filepath, self.getConfLoc())
+
     #perform actual config parse here
     def configLoad(self, file):
         self.dataStructure.clear()
@@ -882,10 +1082,14 @@ class AnBeKoM:
 
 
         if self.dataStructure.indexOf('starting_point_coordinates') != -1 and self.dataStructure.indexOf('starting_point_atom') != -1:
-            Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'Simultaneous usage of starting_point_coordinates parameter with starting_point_atom parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring atom.')
+            #Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'Simultaneous usage of starting_point_coordinates parameter with starting_point_atom parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring atom.')
+            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'Simultaneous usage of starting_point_coordinates parameter with starting_point_atom parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring atom.')
+            msg.exec_()
             self.dataStructure.remove('starting_point_atom')
         if self.dataStructure.indexOf('starting_point_coordinates') != -1 and self.dataStructure.indexOf('starting_point_residue') != -1:
-            Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'Simultaneous usage of starting_point_coordinates parameter with starting_point_residue parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring residue.')
+            #Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'Simultaneous usage of starting_point_coordinates parameter with starting_point_residue parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring residue.')
+            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'Simultaneous usage of starting_point_coordinates parameter with starting_point_residue parameters is not supported by plugin. Please, use only one of these parameters. Now ignoring residue.')
+            msg.exec_()
             self.dataStructure.remove('starting_point_residue')
         if self.dataStructure.indexOf('starting_point_coordinates') == -1:
             #perform harakiri with selecting model and pre-loading coordinates with the command similar to the one below
@@ -899,10 +1103,10 @@ class AnBeKoM:
                aids = "+".join(self.dataStructure.get('starting_point_atom').split(" "))
             #print(aids)
             #print(rids)
-            sel1index = self.listbox1.curselection()
-            if (sel1index):
-                sel1text = self.listbox1.get(sel1index[0])
-                model = self.listbox1.get(sel1index)
+            sel1item = self.listbox1.currentItem()
+            if sel1item:
+                sel1text = sel1item.text()
+                model = sel1text
                 if (aids):
                     selector.append("id " + aids + " & " + model)
                 if (rids):
@@ -919,7 +1123,9 @@ class AnBeKoM:
 
         # test include/exclude
         if self.hasIncludeExclude():
-           Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'include_ and exclude_ parameters are not supported by plugin. Please, use the plugin to specify residues to be analyzed.')
+            #Pmw.MessageDialog(self.parent,title = 'Information',message_text = 'include_ and exclude_ parameters are not supported by plugin. Please, use the plugin to specify residues to be analyzed.')
+            msg = QtWidgets.QMessageBox(QtWidgets.QMessageBox.Information, 'Information', 'include_ and exclude_ parameters are not supported by plugin. Please, use the plugin to specify residues to be analyzed.')
+            msg.exec_()
 
         #print("reading done...")
         #now, all read in the structure. Multi-line params merged into one-liners
@@ -931,12 +1137,12 @@ class AnBeKoM:
         self.shellDepth.setvalue("")
         self.shellRadius.setvalue("")
         self.clusteringThreshold.setvalue("")
-        self.approxVar.set("")
-        self.optimizeNearValue.set("")
-        self.optimizeRadius.set("")
-        self.xlocvar.set(0)
-        self.ylocvar.set(0)
-        self.zlocvar.set(0)
+        self.approxVar.setText("")
+        self.optimizeNearValue.setText("")
+        self.optimizeRadius.setText("")
+        self.xlocvar.setValue(0.0)
+        self.ylocvar.setValue(0.0)
+        self.zlocvar.setValue(0.0)
     def hasIncludeExclude(self):
         notAllowed = [ "include_residue_names", "include_residue_ids", "include_atom_numbers", "exclude_residue_names", "exclude_residue_ids", "exclude_atom_numbers"]
         sk = self.dataStructure.getKeys()
@@ -1016,11 +1222,11 @@ class AnBeKoM:
             elif key == "clustering_threshold":
                 self.clusteringThreshold.setvalue(str(val))
             elif key == "number_of_approximating_balls":
-                self.approxVar.set(str(val))
+                self.approxVar.setText(str(val))
             elif key == "max_distance":
-                self.optimizeNearValue.set(str(val))
+                self.optimizeNearValue.setText(str(val))
             elif key == "desired_radius":
-                self.optimizeRadius.set(str(val))
+                self.optimizeRadius.setText(str(val))
             elif key == "include_residue_names":
                 self.s = dict()
                 self.s.clear()
@@ -1039,9 +1245,9 @@ class AnBeKoM:
                 self.reinitialiseFromConfig()
             elif key == "starting_point_coordinates":
                 starr = (str(val)).split(" ")
-                self.xlocvar.set(float(self.fixPrecision(starr[0])))
-                self.ylocvar.set(float(self.fixPrecision(starr[1])))
-                self.zlocvar.set(float(self.fixPrecision(starr[2])))
+                self.xlocvar.setValue(float(self.fixPrecision(starr[0])))
+                self.ylocvar.setValue(float(self.fixPrecision(starr[1])))
+                self.zlocvar.setValue(float(self.fixPrecision(starr[2])))
     def structureUpdateFromGui(self):
         self.dataStructure.replace("probe_radius", self.tunnelsProbe.getvalue(), 0)
         self.dataStructure.replace("java_heap", self.javaHeap.getvalue(), 0)
@@ -1082,28 +1288,50 @@ class AnBeKoM:
         else:
             self.inputAnalyse()
 
+    # def inputAnalyse(self):
+    #     sel1list = self.listbox1.curselection()
+    #     if sel1list:
+    #         sel1index = sel1list[0]
+    #         sel1text = self.listbox1.get(sel1index)
+    #         self.whichModelSelect = sel1text
+    #         sel=cmd.get_model(self.whichModelSelect)
+    #     #pripravit kontrolni strukturu pro nalezene
+    #     self.s = dict()
+    #     self.s.clear()
+    #     if sel1list:
+    #         #cntr = 0
+    #         for a in sel.atom:
+    #             if not a.resn in self.s:
+    #                 if (self.containsValue(self.stdam_list, a.resn)):
+    #                     self.s[self.AAKEY] = IntVar()
+    #                     self.s[self.AAKEY].set(1)
+    #                 else:
+    #                     self.s[a.resn] = IntVar()
+    #                     # uncheck all ligands by default
+    #                     self.s[a.resn].set(0)
+    #     self.reinitialise()
+
     def inputAnalyse(self):
-        sel1list = self.listbox1.curselection()
-        if sel1list:
-            sel1index = sel1list[0]
-            sel1text = self.listbox1.get(sel1index)
+        # Get the current item
+        sel1item = self.listbox1.currentItem()
+
+        if sel1item:
+            # Get the text of the current item
+            sel1text = sel1item.text()
             self.whichModelSelect = sel1text
-            sel=cmd.get_model(self.whichModelSelect)
-        #pripravit kontrolni strukturu pro nalezene
+            sel = cmd.get_model(self.whichModelSelect)
+
+        # Prepare control structure for found
         self.s = dict()
         self.s.clear()
-        if sel1list:
-            #cntr = 0
+
+        if sel1item:
             for a in sel.atom:
                 if not a.resn in self.s:
                     if (self.containsValue(self.stdam_list, a.resn)):
-                        self.s[self.AAKEY] = IntVar()
-                        self.s[self.AAKEY].set(1)
+                        self.s[self.AAKEY] = Qt.Checked
                     else:
-                        self.s[a.resn] = IntVar()
-                        # uncheck all ligands by default
-                        self.s[a.resn].set(0)
-        self.reinitialise()
+                        self.s[a.resn] = Qt.Unchecked
 
     def reinitialiseFromConfig(self):
         ksorted = sorted(self.s.keys())
@@ -1317,22 +1545,22 @@ class AnBeKoM:
     def crisscross(self,x,y,z,d,name="crisscross"):
 
         obj = [
-        LINEWIDTH, 3,
+        cgo.LINEWIDTH, 3,
 
-        BEGIN, LINE_STRIP,
-        VERTEX, float(x-d), float(y), float(z),
-        VERTEX, float(x+d), float(y), float(z),
-        END,
+        cgo.BEGIN, cgo.LINE_STRIP,
+        cgo.VERTEX, float(x-d), float(y), float(z),
+        cgo.VERTEX, float(x+d), float(y), float(z),
+        cgo.END,
 
-        BEGIN, LINE_STRIP,
-        VERTEX, float(x), float(y-d), float(z),
-        VERTEX, float(x), float(y+d), float(z),
-        END,
+        cgo.BEGIN, cgo.LINE_STRIP,
+        cgo.VERTEX, float(x), float(y-d), float(z),
+        cgo.VERTEX, float(x), float(y+d), float(z),
+        cgo.END,
 
-        BEGIN, LINE_STRIP,
-        VERTEX, float(x), float(y), float(z-d),
-        VERTEX, float(x), float(y), float(z+d),
-        END
+        cgo.BEGIN, cgo.LINE_STRIP,
+        cgo.VERTEX, float(x), float(y), float(z-d),
+        cgo.VERTEX, float(x), float(y), float(z+d),
+        cgo.END
 
         ]
         view = cmd.get_view()
@@ -1346,11 +1574,15 @@ if __name__ == '__main__':
         def my_show(self,*args,**kwargs):
             pass
     app = App()
-    app.root = tk.Tk()
-    Pmw.initialise(app.root)
-    app.root.title('Some Title')
+    #app.root = tk.Tk()
+    #Pmw.initialise(app.root)
+    #app.root.title('Some Title')
+    app = QtWidgets.QApplication([])
+    window = QtWidgets.QMainWindow()
+    app.setActiveWindow(window)
+    widget = AnBeKoM(window)
+    app.exec_()
 
-    widget = AnBeKoM(app)
-    exitButton = tk.Button(app.root, text = 'Exit', command = app.root.destroy)
-    exitButton.pack()
-    app.root.mainloop()
+    #exitButton = tk.Button(app.root, text = 'Exit', command = app.root.destroy)
+    #exitButton.pack()
+    #app.root.mainloop()
