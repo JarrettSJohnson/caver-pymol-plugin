@@ -299,6 +299,7 @@ class AnBeKoM(QtWidgets.QDialog):
         parent = self.parent()
 
         layout = QtWidgets.QVBoxLayout(self)
+        layout.setSpacing(1)
 
         # workaround for list binding
         self.configJustLoaded = 0
@@ -327,6 +328,7 @@ class AnBeKoM(QtWidgets.QDialog):
         label = QtWidgets.QLabel(text=version_text, parent=parent)
         label.setStyleSheet("background-color: orange; color: white;")
         label.setMargin(4)
+        label.setAlignment(Qt.AlignCenter)
 
         button = QtWidgets.QPushButton("Help and how to cite", parent=parent)
         button.clicked.connect(self.launchHelp)
@@ -369,7 +371,7 @@ class AnBeKoM(QtWidgets.QDialog):
 
         #self.binlocation.pack(fill='x',padx=4,pady=1) # vertical
         self.configgroup = QtWidgets.QGroupBox("Configuration save/load")
-        self.configgroup_layout = QtWidgets.QVBoxLayout(self.configgroup)
+        self.configgroup_layout = QtWidgets.QHBoxLayout(self.configgroup)
         #self.configgroup = Pmw.Group(self.dialog.interior(), tag_text='Configuration save/load')
         self.conflocationDefault = os.path.join(self.caver3locationAbsolute,"config.txt")
         self.DEFCONF = "(default config used)"
@@ -467,7 +469,7 @@ class AnBeKoM(QtWidgets.QDialog):
         #self.varremovewater.set(1)
 
         self.inModelGroup = QtWidgets.QGroupBox("Input model:")
-        model_group_layout = QtWidgets.QVBoxLayout()
+        model_group_layout = QtWidgets.QHBoxLayout()
         self.listbox1 = QtWidgets.QListWidget()
         self.listbox1.setMinimumSize(25, 6)
         self.listbox1.itemSelectionChanged.connect(self.inputAnalyseWrap)
@@ -523,9 +525,7 @@ class AnBeKoM(QtWidgets.QDialog):
 
 
         groupstart = QtWidgets.QGroupBox("Starting point")
-        start_group_layout = QtWidgets.QVBoxLayout()
-        groupstart.setLayout(start_group_layout)
-        layout.addWidget(groupstart)
+        start_group_layout = QtWidgets.QVBoxLayout(groupstart)
         #groupstart = Pmw.Group(self.dialog.interior(),tag_text='Starting point')
 
         self.surroundingsvar = None# TODO: ???
@@ -536,8 +536,7 @@ class AnBeKoM(QtWidgets.QDialog):
         start_group_layout.addWidget(radioframe)
         #radioframe = tk.Frame(groupstart.interior())
         group1 = QtWidgets.QGroupBox("Convert surroundings to x,y,x coordinates of starting point")
-        group1_layout = QtWidgets.QVBoxLayout()
-        group1.setLayout(group1_layout)
+        group1_layout = QtWidgets.QVBoxLayout(group1)
 
         radioframe_layout.addWidget(group1)
         #radioframe.addWidget(group1)
@@ -564,8 +563,7 @@ class AnBeKoM(QtWidgets.QDialog):
 
         
         group2 = QtWidgets.QGroupBox("x, y, z coordinates of starting point")
-        group2_layout = QtWidgets.QVBoxLayout()
-        group2.setLayout(group2_layout)
+        group2_layout = QtWidgets.QHBoxLayout(group2)
         radioframe_layout.addWidget(group2)
 
         #group2 = Pmw.Group(radioframe,
@@ -648,8 +646,7 @@ class AnBeKoM(QtWidgets.QDialog):
         # self.zlocfr.pack(side=LEFT,fill='x',padx=4,pady=1) # vertical
 
         self.OpGroup = QtWidgets.QGroupBox("Starting point optimization")
-        optimization_group_layout = QtWidgets.QVBoxLayout()
-        self.OpGroup.setLayout(optimization_group_layout)
+        optimization_group_layout = QtWidgets.QHBoxLayout(self.OpGroup)
         self.optimizeLabel = QtWidgets.QLabel("Maximum distance (A):")
         optimization_group_layout.addWidget(self.optimizeLabel)
         radioframe_layout.addWidget(self.OpGroup)
@@ -658,10 +655,11 @@ class AnBeKoM(QtWidgets.QDialog):
         #self.optimizeLabel = tk.Label(self.OpGroup.interior(),text = 'Maximum distance (A): ')
         #self.optimizeLabel.pack(side=LEFT)
 
-        self.optimizeNear = QtWidgets.QLineEdit("4.0")
-        optimization_group_layout.addWidget(self.optimizeNear)
+        optimization_group_layout.addWidget(self.optimizeNearValue)
         self.optimizeLabel2 = QtWidgets.QLabel("Desired radius (A):")
         optimization_group_layout.addWidget(self.optimizeLabel2)
+        optimization_group_layout.addWidget(self.optimizeRadius)
+
 
 
         # TODO
@@ -685,7 +683,11 @@ class AnBeKoM(QtWidgets.QDialog):
         self.afterbutt.clicked.connect(self.details)
         egroup_layout.addWidget(self.afterbutt)
         self.afterbutt.setEnabled(False)
-        layout.addWidget(self.egroup)
+
+        start_group_layout.addWidget(self.egroup)
+
+        layout.addWidget(groupstart)
+
 
         buttonBox = QtWidgets.QDialogButtonBox()
         okButton = buttonBox.addButton(QtWidgets.QDialogButtonBox.Ok)
