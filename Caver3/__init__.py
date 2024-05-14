@@ -500,7 +500,6 @@ class AnBeKoM(QtWidgets.QDialog):
         self.filterGroup = QtWidgets.QGroupBox("Input atoms:")
         filter_group_layout = QtWidgets.QVBoxLayout()
         self.filterGroup.setLayout(filter_group_layout)
-        layout.addWidget(self.filterGroup)
 
         #self.filterGroup = Pmw.Group(self.dialog.interior(), tag_text='Input atoms:')
         #self.filterGroup.pack()
@@ -535,7 +534,7 @@ class AnBeKoM(QtWidgets.QDialog):
         radioframe_layout = QtWidgets.QHBoxLayout(radioframe)
         start_group_layout.addWidget(radioframe)
         #radioframe = tk.Frame(groupstart.interior())
-        group1 = QtWidgets.QGroupBox("Convert surroundings to x,y,x coordinates of starting point")
+        group1 = QtWidgets.QGroupBox("Convert surroundings to x,y,z coordinates of starting point")
         group1_layout = QtWidgets.QVBoxLayout(group1)
 
         radioframe_layout.addWidget(group1)
@@ -564,7 +563,7 @@ class AnBeKoM(QtWidgets.QDialog):
         
         group2 = QtWidgets.QGroupBox("x, y, z coordinates of starting point")
         group2_layout = QtWidgets.QHBoxLayout(group2)
-        radioframe_layout.addWidget(group2)
+        start_group_layout.addWidget(group2)
 
         #group2 = Pmw.Group(radioframe,
         #        tag_text='x, y, z coordinates of starting point')
@@ -649,7 +648,7 @@ class AnBeKoM(QtWidgets.QDialog):
         optimization_group_layout = QtWidgets.QHBoxLayout(self.OpGroup)
         self.optimizeLabel = QtWidgets.QLabel("Maximum distance (A):")
         optimization_group_layout.addWidget(self.optimizeLabel)
-        radioframe_layout.addWidget(self.OpGroup)
+        start_group_layout.addWidget(self.OpGroup)
         #self.OpGroup = Pmw.Group(radioframe,tag_text = "Starting point optimization")
         #self.OpGroup.pack(fill='x')
         #self.optimizeLabel = tk.Label(self.OpGroup.interior(),text = 'Maximum distance (A): ')
